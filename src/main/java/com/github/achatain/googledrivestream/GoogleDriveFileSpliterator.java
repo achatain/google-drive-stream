@@ -28,6 +28,7 @@ package com.github.achatain.googledrivestream;
 
 import com.google.api.services.drive.Drive;
 import com.google.api.services.drive.model.File;
+import com.google.api.services.drive.model.FileList;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -35,11 +36,15 @@ import java.util.Deque;
 import java.util.Spliterator;
 import java.util.function.Consumer;
 
+import static java.util.Objects.nonNull;
+
 public class GoogleDriveFileSpliterator implements Spliterator<File> {
 
-    private Drive drive;
-    private Deque<File> files;
-    private boolean initalised = false;
+    private final Drive drive;
+    private final Deque<File> files;
+
+    private boolean firstPageFetched;
+    private String nextPageToken;
 
     public GoogleDriveFileSpliterator(Drive drive) {
         this.drive = drive;
@@ -49,24 +54,39 @@ public class GoogleDriveFileSpliterator implements Spliterator<File> {
     @Override
     public boolean tryAdvance(Consumer<? super File> fileConsumer) {
         try {
-            if (!initalised) {
-                fetchNextFiles();
-                initalised = true;
-            }
+            if (!firstPageFetched)
+                fetchFirstPage();
 
             if (files.isEmpty())
-                return false;
+                if (hasNextPage()) {
+                    fetchNextPage();
+                    return tryAdvance(fileConsumer);
+                } else
+                    return false;
             else {
                 fileConsumer.accept(files.pop());
                 return true;
             }
         } catch (IOException e) {
-            throw new RuntimeException();
+            throw new RuntimeException(e);
         }
     }
 
-    private void fetchNextFiles() throws IOException {
-        files.addAll(drive.files().list().execute().getFiles());
+    private void fetchFirstPage() throws IOException {
+        FileList firstPage = drive.files().list().execute();
+        files.addAll(firstPage.getFiles());
+        nextPageToken = firstPage.getNextPageToken();
+        firstPageFetched = true;
+    }
+
+    private boolean hasNextPage() {
+        return nonNull(nextPageToken);
+    }
+
+    private void fetchNextPage() throws IOException {
+        FileList nextPage = drive.files().list().setPageToken(nextPageToken).execute();
+        files.addAll(nextPage.getFiles());
+        nextPageToken = nextPage.getNextPageToken();
     }
 
     @Override

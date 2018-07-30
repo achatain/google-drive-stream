@@ -36,8 +36,7 @@ import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
-import java.util.List;
-
+import static java.util.List.of;
 import static org.junit.Assert.assertEquals;
 import static org.mockito.Mockito.when;
 
@@ -47,23 +46,56 @@ public class GoogleDriveStreamTest {
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private Drive drive;
 
-    private FileList fileList;
-    private File file1, file2, file3;
+    private long count;
 
     @Before
-    public void setUp() throws Exception {
-        fileList = new FileList();
-        file1 = new File();
-        file2 = new File();
-        file3 = new File();
-        fileList.setFiles(List.of(file1, file2, file3));
-
-        when(drive.files().list().execute()).thenReturn(fileList);
+    public void setUp() {
+        count = -1L;
     }
 
     @Test
-    public void streamTheThreeFilesWhenStorageHasThreeFiles() {
-        GoogleDriveStream fileStream = new GoogleDriveStream(drive);
-        assertEquals(3, fileStream.files().count());
+    public void streamOfThreeStorageFiles() throws Exception {
+        givenStorageHasThreeFiles();
+        whenFilesAreStreamed();
+        thenThreeFilesAreStreamed();
+    }
+
+    private void givenStorageHasThreeFiles() throws Exception {
+        FileList fileList = new FileList();
+        fileList.setFiles(of(new File(), new File(), new File()));
+        when(drive.files().list().execute()).thenReturn(fileList);
+    }
+
+    private void whenFilesAreStreamed() {
+        count = new GoogleDriveStream(drive).files().count();
+    }
+
+    private void thenThreeFilesAreStreamed() {
+        assertEquals("Expected a stream of 3 files but got " + count,
+                3L, count);
+    }
+
+    @Test
+    public void streamOfTwoPagesOfThreeStorageFilesEach() throws Exception {
+        givenStorageHasTwoPagesOfThreeFilesEach();
+        whenFilesAreStreamed();
+        thenSixFilesAreStreamed();
+    }
+
+    private void givenStorageHasTwoPagesOfThreeFilesEach() throws Exception {
+        FileList fileList1 = new FileList();
+        fileList1.setFiles(of(new File(), new File(), new File()));
+        String pageToken = "";
+        fileList1.setNextPageToken(pageToken);
+        when(drive.files().list().execute()).thenReturn(fileList1);
+
+        FileList fileList2 = new FileList();
+        fileList2.setFiles(of(new File(), new File(), new File()));
+        when(drive.files().list().setPageToken(pageToken).execute()).thenReturn(fileList2);
+    }
+
+    private void thenSixFilesAreStreamed() {
+        assertEquals("Expected a stream of 6 files but got " + count,
+                6L, count);
     }
 }

@@ -36,46 +36,51 @@ import org.mockito.Answers;
 import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnitRunner;
 
+import java.io.IOException;
 import java.util.function.Consumer;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.List.of;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.*;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class GoogleDriveFileSpliteratorTest {
 
+    private static final String FILES_CAN_NOT_BE_FETCHED_ERROR = "Files can not be fetched";
+
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private Drive drive;
 
     private GoogleDriveFileSpliterator spliterator;
-    private ConsumerTestHelper consumer;
-    private FileList fileList;
-    private File file1;
-    private File file2;
+    private FileConsumerTestHelper consumer;
+    private FileList fileList1, fileList2;
+    private File file1, file2;
+    private String pageToken;
 
     @Before
     public void setUp() throws Exception {
-        consumer = new ConsumerTestHelper();
-        fileList = new FileList();
+        consumer = new FileConsumerTestHelper();
+        fileList1 = new FileList();
+        fileList2 = new FileList();
         file1 = new File();
         file2 = new File();
+        pageToken = "";
         spliterator = new GoogleDriveFileSpliterator(drive);
 
-        when(drive.files().list().execute()).thenReturn(fileList);
+        when(drive.files().list().execute()).thenReturn(fileList1);
+        when(drive.files().list().setPageToken(pageToken).execute()).thenReturn(fileList2);
     }
 
     @Test
-    public void doNotConsumeFileWhenNoFileExists() {
+    public void storageHasNoFile() {
         givenStorageHasNoFile();
         thenNoFileCanBeConsumed();
     }
 
     private void givenStorageHasNoFile() {
-        fileList.setFiles(emptyList());
+        fileList1.setFiles(emptyList());
     }
 
     private void thenNoFileCanBeConsumed() {
@@ -84,17 +89,18 @@ public class GoogleDriveFileSpliteratorTest {
     }
 
     @Test
-    public void consumeTheFileWhenStorageHasOneFile() {
+    public void storageHasOneFile() {
         givenStorageHasOneFile();
-        whenNextFileIsConsumed();
+        whenFileIsConsumed();
         thenFileConsumedIs(file1);
+        thenNoFileCanBeConsumed();
     }
 
     private void givenStorageHasOneFile() {
-        fileList.setFiles(singletonList(file1));
+        fileList1.setFiles(singletonList(file1));
     }
 
-    private void whenNextFileIsConsumed() {
+    private void whenFileIsConsumed() {
         assertTrue("A file should have been consumed",
                 spliterator.tryAdvance(consumer));
     }
@@ -105,20 +111,69 @@ public class GoogleDriveFileSpliteratorTest {
     }
 
     @Test
-    public void consumeFirstThenSecondFilesWhenStorageHasTwoFiles() {
+    public void storageHasTwoFiles() {
         givenStorageHasTwoFiles();
-        whenNextFileIsConsumed();
+        whenFileIsConsumed();
         thenFileConsumedIs(file1);
-        whenNextFileIsConsumed();
+        whenFileIsConsumed();
         thenFileConsumedIs(file2);
+        thenNoFileCanBeConsumed();
     }
 
     private void givenStorageHasTwoFiles() {
-        fileList.setFiles(of(file1, file2));
+        fileList1.setFiles(of(file1, file2));
     }
 
-    private static class ConsumerTestHelper implements Consumer<File> {
+    @Test
+    public void storageHasTwoPagesOfOneFileEach() {
+        givenStorageHasTwoPagesOfOneFileEach();
+        whenFileIsConsumed();
+        thenFileConsumedIs(file1);
+        whenFileIsConsumed();
+        thenFileConsumedIs(file2);
+        thenNoFileCanBeConsumed();
+    }
 
+    private void givenStorageHasTwoPagesOfOneFileEach() {
+        fileList1.setFiles(singletonList(file1));
+        fileList1.setNextPageToken(pageToken);
+        fileList2.setFiles(singletonList(file2));
+    }
+
+    @Test
+    public void storageHasOnePageOfOneFileAndNextPageIsEmpty() {
+        givenStorageHasOnePageOfOneFileAndNextPageIsEmpty();
+        whenFileIsConsumed();
+        thenFileConsumedIs(file1);
+        thenNoFileCanBeConsumed();
+    }
+
+    private void givenStorageHasOnePageOfOneFileAndNextPageIsEmpty() {
+        fileList1.setFiles(singletonList(file1));
+        fileList1.setNextPageToken(pageToken);
+        fileList2.setFiles(emptyList());
+    }
+
+    @Test
+    public void storageFilesCanNotBeFetched() throws Exception {
+        givenStorageFilesCanNotBeFetched();
+        thenFilesCanNotBeConsumed();
+    }
+
+    private void givenStorageFilesCanNotBeFetched() throws Exception {
+        when(drive.files().list().execute()).thenThrow(new IOException(FILES_CAN_NOT_BE_FETCHED_ERROR));
+    }
+
+    private void thenFilesCanNotBeConsumed() {
+        try {
+            whenFileIsConsumed();
+            fail("An exception should have been thrown");
+        } catch (Exception e) {
+            assertTrue(e.getMessage().contains(FILES_CAN_NOT_BE_FETCHED_ERROR));
+        }
+    }
+
+    private static class FileConsumerTestHelper implements Consumer<File> {
         private File file;
 
         @Override
