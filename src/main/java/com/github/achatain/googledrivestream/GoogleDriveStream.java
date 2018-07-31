@@ -34,7 +34,7 @@ import java.util.stream.StreamSupport;
 
 public class GoogleDriveStream {
 
-    private Drive drive;
+    private final Drive drive;
 
     public GoogleDriveStream(Drive drive) {
         this.drive = drive;

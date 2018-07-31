@@ -46,7 +46,7 @@ public class GoogleDriveFileSpliterator implements Spliterator<File> {
     private boolean firstPageFetched;
     private String nextPageToken;
 
-    public GoogleDriveFileSpliterator(Drive drive) {
+    GoogleDriveFileSpliterator(Drive drive) {
         this.drive = drive;
         files = new ArrayDeque<>();
     }
