@@ -37,8 +37,13 @@ import java.util.Spliterator;
 import java.util.function.Consumer;
 
 import static java.util.Objects.nonNull;
+import static java.lang.String.format;
 
 public class GoogleDriveFileSpliterator implements Spliterator<File> {
+
+    private static final int PAGE_SIZE = 1000;
+    private static final String FIELDS = "files,incompleteSearch,kind,nextPageToken";
+    private static final String ERROR = "Failed to fetch files for page token [%s].";
 
     private final Drive drive;
     private final Deque<File> files;
@@ -68,12 +73,12 @@ public class GoogleDriveFileSpliterator implements Spliterator<File> {
                 return true;
             }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException(format(ERROR, nextPageToken), e);
         }
     }
 
     private void fetchFirstPage() throws IOException {
-        FileList firstPage = drive.files().list().execute();
+        FileList firstPage = drive.files().list().setFields(FIELDS).setPageSize(PAGE_SIZE).execute();
         files.addAll(firstPage.getFiles());
         nextPageToken = firstPage.getNextPageToken();
         firstPageFetched = true;
@@ -84,7 +89,7 @@ public class GoogleDriveFileSpliterator implements Spliterator<File> {
     }
 
     private void fetchNextPage() throws IOException {
-        FileList nextPage = drive.files().list().setPageToken(nextPageToken).execute();
+        FileList nextPage = drive.files().list().setFields(FIELDS).setPageSize(PAGE_SIZE).setPageToken(nextPageToken).execute();
         files.addAll(nextPage.getFiles());
         nextPageToken = nextPage.getNextPageToken();
     }

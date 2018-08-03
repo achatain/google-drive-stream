@@ -38,6 +38,8 @@ import org.mockito.junit.MockitoJUnitRunner;
 
 import static java.util.List.of;
 import static org.junit.Assert.assertEquals;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
@@ -47,10 +49,12 @@ public class GoogleDriveStreamTest {
     private Drive drive;
 
     private long count;
+    private String pageToken;
 
     @Before
     public void setUp() {
         count = -1L;
+        pageToken = "page-token";
     }
 
     @Test
@@ -63,7 +67,11 @@ public class GoogleDriveStreamTest {
     private void givenStorageHasThreeFiles() throws Exception {
         FileList fileList = new FileList();
         fileList.setFiles(of(new File(), new File(), new File()));
-        when(drive.files().list().execute()).thenReturn(fileList);
+        when(initialFileListRequest()).thenReturn(fileList);
+    }
+
+    private FileList initialFileListRequest() throws Exception {
+        return drive.files().list().setFields(anyString()).setPageSize(anyInt()).execute();
     }
 
     private void whenFilesAreStreamed() {
@@ -85,13 +93,16 @@ public class GoogleDriveStreamTest {
     private void givenStorageHasTwoPagesOfThreeFilesEach() throws Exception {
         FileList fileList1 = new FileList();
         fileList1.setFiles(of(new File(), new File(), new File()));
-        String pageToken = "";
         fileList1.setNextPageToken(pageToken);
-        when(drive.files().list().execute()).thenReturn(fileList1);
+        when(initialFileListRequest()).thenReturn(fileList1);
 
         FileList fileList2 = new FileList();
         fileList2.setFiles(of(new File(), new File(), new File()));
-        when(drive.files().list().setPageToken(pageToken).execute()).thenReturn(fileList2);
+        when(subsequentFileListRequest()).thenReturn(fileList2);
+    }
+
+    private FileList subsequentFileListRequest() throws Exception {
+        return drive.files().list().setFields(anyString()).setPageSize(anyInt()).setPageToken(pageToken).execute();
     }
 
     private void thenSixFilesAreStreamed() {

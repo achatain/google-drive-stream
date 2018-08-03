@@ -43,12 +43,14 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.List.of;
 import static org.junit.Assert.*;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 
 @RunWith(MockitoJUnitRunner.class)
 public class GoogleDriveFileSpliteratorTest {
 
-    private static final String FILES_CAN_NOT_BE_FETCHED_ERROR = "Files can not be fetched";
+    private static final String FILES_CAN_NOT_BE_FETCHED_ERROR = "Failed to fetch files for page token";
 
     @Mock(answer = Answers.RETURNS_DEEP_STUBS)
     private Drive drive;
@@ -69,8 +71,16 @@ public class GoogleDriveFileSpliteratorTest {
         pageToken = "";
         spliterator = new GoogleDriveFileSpliterator(drive);
 
-        when(drive.files().list().execute()).thenReturn(fileList1);
-        when(drive.files().list().setPageToken(pageToken).execute()).thenReturn(fileList2);
+        when(initialFileListRequest()).thenReturn(fileList1);
+        when(subsequentFileListRequest()).thenReturn(fileList2);
+    }
+
+    private FileList initialFileListRequest() throws Exception {
+        return drive.files().list().setFields(anyString()).setPageSize(anyInt()).execute();
+    }
+
+    private FileList subsequentFileListRequest() throws Exception {
+        return drive.files().list().setFields(anyString()).setPageSize(anyInt()).setPageToken(pageToken).execute();
     }
 
     @Test
@@ -161,7 +171,7 @@ public class GoogleDriveFileSpliteratorTest {
     }
 
     private void givenStorageFilesCanNotBeFetched() throws Exception {
-        when(drive.files().list().execute()).thenThrow(new IOException(FILES_CAN_NOT_BE_FETCHED_ERROR));
+        when(initialFileListRequest()).thenThrow(new IOException(FILES_CAN_NOT_BE_FETCHED_ERROR));
     }
 
     private void thenFilesCanNotBeConsumed() {
